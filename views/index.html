@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light dark" />
+        <meta name="description" content="{{.Description}}" />
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+        />
+        <script
+            defer
+            src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"
+        ></script>
+        <title>{{.Title}}</title>
+    </head>
+    <body>
+        <header>...</header>
+        <main class="container">
+            <div
+                class="container"
+                style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                    align-items: center;
+                    justify-content: center
+                    margin: 2rem;
+                "
+            >
+                <h1>{{.Title}}</h1>
+                <p>{{.Greeting}}</p>
+            </div>
+            <div
+                style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                    align-content: center;
+                    align-items: center;
+                    margin: 2rem;
+                "
+            >
+                <div style="display: flex; gap: 1rem">
+                    <h1>Name</h1>
+                    <input
+                        type="text"
+                        name="name"
+                        id="name"
+                        value="{{.Name}}"
+                    />
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: center">
+                    <h3>Upload file</h3>
+                    <input
+                        type="file"
+                        style="width: 69%; margin-right: -1rem"
+                    />
+                </div>
+            </div>
+        </main>
+        <footer>...</footer>
+    </body>
+</html>
