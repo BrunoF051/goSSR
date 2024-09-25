@@ -25,6 +25,7 @@ type NavItem struct {
 }
 
 // Variables
+var pageTitle = "Simple SSR Page"
 var navItems = []NavItem{
 	{Link: "/", Text: "Home"},
 	{Link: "/about", Text: "About"},
@@ -71,6 +72,7 @@ func baseTemplateData(title, description, currentPath string) fiber.Map {
 		}
 	}
 	return fiber.Map{
+		"PageTitle":   pageTitle,
 		"Title":       title,
 		"Description": description,
 		"NavItems":    currentNavItems,
