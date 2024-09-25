@@ -47,21 +47,22 @@
         method="POST"
         enctype="multipart/form-data"
     >
-        <div style="display: flex; gap: 1rem">
-            <h1>Name</h1>
-            <input type="text" name="name" id="name" value="{{.Name}}" />
-        </div>
-        <div style="display: flex; gap: 1rem; justify-content: center">
-            <h3>Upload file</h3>
+        <input type="text" name="name" id="name" placeholder="Name" />
+
+        <input
+            type="file"
+            name="file"
+            accept="image/jpeg,image/png"
+            @change="validateFile($event)"
+        />
+        <p x-show="fileError" x-text="fileError" style="color: red"></p>
+        <div style="display: flex; justify-content: flex-end">
             <input
-                type="file"
-                name="file"
-                accept="image/jpeg,image/png"
-                style="width: 69%; margin-right: -1rem"
-                @change="validateFile($event)"
+                type="submit"
+                value="Submit"
+                :disabled="fileError !== ''"
+                style="width: 200px"
             />
         </div>
-        <p x-show="fileError" x-text="fileError" style="color: red"></p>
-        <input type="submit" value="Submit" :disabled="fileError !== ''" />
     </form>
 </div>
