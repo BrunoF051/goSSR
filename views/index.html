@@ -1,34 +1,14 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="color-scheme" content="light dark" />
-        <meta name="description" content="{{.Description}}" />
-        <link
-            rel="stylesheet"
-            href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
-        />
-        <script
-            defer
-            src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"
-        ></script>
-        <title>{{.Title}}</title>
-    </head>
-    <body>
-        <header>...</header>
-        <main class="container">
-            <div
-                class="container"
-                style="
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                    align-items: center;
-                    justify-content: center;
-                    margin: 2rem;
-                "
-                x-data="{
+<div
+    class="container"
+    style="
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: center;
+        justify-content: center;
+        margin: 2rem;
+    "
+    x-data="{
                     resetForm: {{.ResetForm}},
                     fileError: '',
                     validateFile(event) {
@@ -40,71 +20,48 @@
                         }
                     }
                 }"
-                x-init="$watch('resetForm', function(newValue) {
+    x-init="$watch('resetForm', function(newValue) {
                     if (newValue) {
                         $refs.uploadForm.reset();
                         resetForm = false;
                     }
                 })"
-            >
-                <h1>{{.Title}}</h1>
-                <p>{{.Greeting}}</p>
+>
+    <h1>{{.Title}}</h1>
+    <p>{{.Greeting}}</p>
 
-                {{if .Error}}
-                <p style="color: red">{{.Error}}</p>
-                {{end}} {{if .ProcessedImage}}
-                <p style="color: green">{{.Success}}</p>
-                <h3>Processed Image:</h3>
-                <img
-                    src="data:image/jpeg;base64,{{.ProcessedImage}}"
-                    alt="Processed Image"
-                />
-                {{end}}
+    {{if .Error}}
+    <p style="color: red">{{.Error}}</p>
+    {{end}} {{if .ProcessedImage}}
+    <p style="color: green">{{.Success}}</p>
+    <h3>Processed Image:</h3>
+    <img
+        src="data:image/jpeg;base64,{{.ProcessedImage}}"
+        alt="Processed Image"
+    />
+    {{end}}
 
-                <form
-                    x-ref="uploadForm"
-                    action="/upload"
-                    method="POST"
-                    enctype="multipart/form-data"
-                >
-                    <div style="display: flex; gap: 1rem">
-                        <h1>Name</h1>
-                        <input
-                            type="text"
-                            name="name"
-                            id="name"
-                            value="{{.Name}}"
-                        />
-                    </div>
-                    <div
-                        style="
-                            display: flex;
-                            gap: 1rem;
-                            justify-content: center;
-                        "
-                    >
-                        <h3>Upload file</h3>
-                        <input
-                            type="file"
-                            name="file"
-                            accept="image/jpeg,image/png"
-                            style="width: 69%; margin-right: -1rem"
-                            @change="validateFile($event)"
-                        />
-                    </div>
-                    <p
-                        x-show="fileError"
-                        x-text="fileError"
-                        style="color: red"
-                    ></p>
-                    <input
-                        type="submit"
-                        value="Submit"
-                        :disabled="fileError !== ''"
-                    />
-                </form>
-            </div>
-        </main>
-        <footer>...</footer>
-    </body>
-</html>
+    <form
+        x-ref="uploadForm"
+        action="/upload"
+        method="POST"
+        enctype="multipart/form-data"
+    >
+        <div style="display: flex; gap: 1rem">
+            <h1>Name</h1>
+            <input type="text" name="name" id="name" value="{{.Name}}" />
+        </div>
+        <div style="display: flex; gap: 1rem; justify-content: center">
+            <h3>Upload file</h3>
+            <input
+                type="file"
+                name="file"
+                accept="image/jpeg,image/png"
+                style="width: 69%; margin-right: -1rem"
+                @change="validateFile($event)"
+            />
+        </div>
+        <p x-show="fileError" x-text="fileError" style="color: red"></p>
+        <input type="submit" value="Submit" :disabled="fileError !== ''" />
+    </form>
+</div>

@@ -17,6 +17,20 @@ import (
 	"github.com/gofiber/template/html/v2"
 )
 
+// Types
+type NavItem struct {
+	Link      string
+	Text      string
+	IsCurrent bool
+}
+
+// Variables
+var navItems = []NavItem{
+	{Link: "/", Text: "Home"},
+	{Link: "/about", Text: "About"},
+	// Add more navigation items as needed
+}
+
 var huggingFaceKey string
 
 func main() {
@@ -35,32 +49,53 @@ func main() {
 	engine := html.New("./views", ".html")
 
 	app := fiber.New(fiber.Config{
-		Views: engine,
+		Views:        engine,
+		ErrorHandler: CustomeErrorHandler,
 	})
 
 	app.Get("/", handleIndex)
+	app.Get("/about", handleAbout)
 	app.Post("/upload", handleUpload)
 
 	log.Fatal(app.Listen(":3000"))
 }
 
+// Handlers
+func baseTemplateData(title, description, currentPath string) fiber.Map {
+	currentNavItems := make([]NavItem, len(navItems))
+	for i, item := range navItems {
+		currentNavItems[i] = NavItem{
+			Link:      item.Link,
+			Text:      item.Text,
+			IsCurrent: item.Link == currentPath,
+		}
+	}
+	return fiber.Map{
+		"Title":       title,
+		"Description": description,
+		"NavItems":    currentNavItems,
+	}
+}
+
+// Handlers
 func handleIndex(c *fiber.Ctx) error {
-	return c.Render("index", fiber.Map{
-		"Title":       "Template Example",
-		"Description": "An example template",
-		"Greeting":    "subtitle",
-		"ResetForm":   false,
-		"Error":       "",
-	})
+	data := baseTemplateData("Home", "Welcome to our site", "/")
+	data["Greeting"] = "Welcome to the homepage"
+	data["ResetForm"] = false
+	data["Error"] = ""
+	return c.Render("index", data, "layouts/main")
+}
+
+func handleAbout(c *fiber.Ctx) error {
+	data := baseTemplateData("About Us", "Learn more about our company", "/about")
+	return c.Render("about", data, "layouts/main")
 }
 
 func handleUpload(c *fiber.Ctx) error {
-	// Get the file from form
+	// Get the file from the form
 	file, err := c.FormFile("file")
 	if err != nil {
-		return c.Render("index", fiber.Map{
-			"Error": "Failed to get file from form",
-		})
+		return fiber.NewError(fiber.StatusBadRequest, "Failed to get file from form")
 	}
 
 	// Get the name from form
@@ -68,32 +103,24 @@ func handleUpload(c *fiber.Ctx) error {
 
 	// Validate file type
 	if !isValidImageType(file.Filename) {
-		return c.Render("index", fiber.Map{
-			"Error": "Invalid file type. Only JPG, JPEG, and PNG are allowed",
-		})
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid file type. Only JPG, JPEG, and PNG are allowed")
 	}
 
 	// Validate file size (5MB max)
 	if file.Size > 5*1024*1024 {
-		return c.Render("index", fiber.Map{
-			"Error": "File size exceeds 5MB limit",
-		})
+		return fiber.NewError(fiber.StatusBadRequest, "File size exceeds 5MB limit")
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"Error": "Failed to open file",
-		})
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to open file")
 	}
 	defer src.Close()
 
 	// Read the file content
 	fileBytes, err := io.ReadAll(src)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"Error": "Failed to read file",
-		})
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to read file")
 	}
 
 	// Encode to base64
@@ -102,31 +129,23 @@ func handleUpload(c *fiber.Ctx) error {
 	// Send to Hugging Face API
 	processedImage, err := sendToHuggingFace(base64String)
 	if err != nil {
-		return c.Render("index", fiber.Map{
-			"Error":     "Failed to process image: " + err.Error(),
-			"ResetForm": true,
-		})
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to process image: "+err.Error())
 	}
-
-	// The processedImage is now a []byte containing the processed image data
-	// You might want to save this or convert it back to base64 for display
 
 	processedBase64 := base64.StdEncoding.EncodeToString(processedImage)
 
-	// Render the index page with a success message
-	return c.Render("index", fiber.Map{
-		"Title":          "Template Example",
-		"Description":    "An example template",
-		"Greeting":       "subtitle",
-		"Success":        "File uploaded and processed successfully",
-		"UploadedName":   name,
-		"FileName":       base64String,
-		"ProcessedImage": processedBase64,
-		"ResetForm":      true,
-	})
+	// Render the index page with success message
+	data := baseTemplateData("Home", "Welcome to our site", "/")
+	data["Success"] = "File uploaded and processed successfully"
+	data["UploadedName"] = name
+	data["FileName"] = base64String
+	data["ProcessedImage"] = processedBase64
+	data["ResetForm"] = true
 
+	return c.Render("index", data, "layouts/main")
 }
 
+// Validate image file type
 func isValidImageType(filename string) bool {
 	ext := filepath.Ext(filename)
 	switch ext {
@@ -137,6 +156,7 @@ func isValidImageType(filename string) bool {
 	}
 }
 
+// Send image to Hugging Face API
 func sendToHuggingFace(base64Image string) ([]byte, error) {
 	url := "https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix"
 
@@ -166,7 +186,7 @@ func sendToHuggingFace(base64Image string) ([]byte, error) {
 	}
 
 	// Set headers
-	req.Header.Set("Authorization", "Bearer huggingFaceKey")
+	req.Header.Set("Authorization", "Bearer "+huggingFaceKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Use-Cache", "true")
 	req.Header.Set("X-Wait-For-Model", "true")
