@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"goSSR/database"
 	"io"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"gorm.io/gorm"
 )
 
@@ -59,11 +61,30 @@ func baseTemplateData(title, description, currentPath string) fiber.Map {
 
 // Handlers
 func (h *Handler) HandleIndex(c *fiber.Ctx) error {
-	// You can use h.DB here if needed
 	data := baseTemplateData("Home", "Welcome to our site", "/")
 	data["Greeting"] = "Welcome to the homepage"
 	data["ResetForm"] = false
 	data["Error"] = ""
+	data["IsLoggedIn"] = false // Default to not logged in
+
+	// Get session and check login status
+	if sess, ok := c.Locals("session").(*session.Session); ok {
+		if userID := sess.Get("user_id"); userID != nil {
+			data["IsLoggedIn"] = true
+			// Fetch user email from database using userID
+			var user database.User
+			if err := h.DB.First(&user, userID).Error; err == nil {
+				data["UserEmail"] = user.Email
+			} else {
+				// Log the error and set a generic message
+				log.Printf("Failed to fetch user data: %v", err)
+				data["Error"] = "An error occurred while fetching user data"
+			}
+		}
+	} else {
+		log.Println("Failed to get session from fiber context")
+	}
+
 	return c.Render("index", data, "layouts/main")
 }
 

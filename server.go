@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"goSSR/auth"
 	"goSSR/database"
 	"goSSR/routes"
 	"log"
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	postgresStorage "github.com/gofiber/storage/postgres/v3"
 	"github.com/gofiber/template/html/v2"
 	"github.com/joho/godotenv"
@@ -28,6 +31,14 @@ func main() {
 	// Close the storage when the program terminates
 	defer storage.Close()
 
+	// Initialize Google OAuth config
+	auth.InitializeOAuthConfig()
+
+	// Set up session store
+	store := session.New(session.Config{
+		Storage: storage,
+	})
+
 	// Initialize database
 	dsn := os.Getenv("DATABASE_URL")
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -43,6 +54,16 @@ func main() {
 	app := fiber.New(fiber.Config{
 		Views:        engine,
 		ErrorHandler: CustomeErrorHandler,
+	})
+
+	app.Use(func(c *fiber.Ctx) error {
+		sess, err := store.Get(c)
+		if err != nil {
+			// Use the custom error handler
+			return CustomeErrorHandler(c, fmt.Errorf("session error: %v", err))
+		}
+		c.Locals("session", sess)
+		return c.Next()
 	})
 
 	// set up routes
