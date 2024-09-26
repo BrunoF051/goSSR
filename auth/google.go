@@ -76,7 +76,6 @@ func (h *Handler) GoogleCallbackHandler(c *fiber.Ctx) error {
 	dbUser := database.User{
 		GoogleID: user.ID,
 		Email:    user.Email,
-		Image:    user.Picture,
 	}
 
 	result := h.DB.Where(database.User{GoogleID: user.ID}).Assign(dbUser).FirstOrCreate(&dbUser)

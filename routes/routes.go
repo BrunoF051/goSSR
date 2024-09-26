@@ -15,7 +15,6 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	app.Get("/", h.HandleIndex)
 	app.Get("/about", h.HandleAbout)
 	app.Post("/upload", auth.RequireAuth, h.HandleUpload)
-	// Google OAuth routes
 	app.Get("/auth/google", authHandler.GoogleLoginHandler)
 	app.Get("/auth/google/callback", authHandler.GoogleCallbackHandler)
 	app.Get("/logout", authHandler.HandleLogout)

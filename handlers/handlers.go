@@ -61,33 +61,22 @@ func baseTemplateData(title, description, currentPath string) fiber.Map {
 
 // Handlers
 func (h *Handler) HandleIndex(c *fiber.Ctx) error {
-	data := baseTemplateData("Home", "Welcome to our site", "/")
-	data["Greeting"] = "Welcome to the homepage"
-	data["ResetForm"] = false
-	data["Error"] = ""
-	data["IsLoggedIn"] = false
+	log.Println("Starting HandleIndex")
 
-	if sess, ok := c.Locals("session").(*session.Session); ok {
-		if userID := sess.Get("user_id"); userID != nil {
-			data["IsLoggedIn"] = true
-			var user database.User
-			if err := h.DB.Where("google_id = ?", userID).First(&user).Error; err == nil {
-				data["UserEmail"] = user.Email
-			} else {
-				log.Printf("Failed to fetch user data: %v", err)
-				data["Error"] = "An error occurred while fetching user data"
-			}
-		}
-	} else {
-		log.Println("Failed to get session from fiber context")
+	sess, ok := c.Locals("session").(*session.Session)
+	if !ok {
+		log.Println("Session not found in context")
+		return c.Render("index", fiber.Map{"IsLoggedIn": false}, "layouts/main")
 	}
 
-	return c.Render("index", data, "layouts/main")
-}
+	googleID := sess.Get("user_id")
+	data, err := h.prepareIndexData(c, googleID)
+	if err != nil {
+		return err
+	}
 
-func (h *Handler) HandleAbout(c *fiber.Ctx) error {
-	data := baseTemplateData("About Us", "Learn more about our company", "/about")
-	return c.Render("about", data, "layouts/main")
+	log.Println("Rendering index page")
+	return c.Render("index", data, "layouts/main")
 }
 
 func (h *Handler) HandleUpload(c *fiber.Ctx) error {
@@ -96,9 +85,6 @@ func (h *Handler) HandleUpload(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "Failed to get file from form")
 	}
-
-	// Get the name from form
-	name := c.FormValue("name")
 
 	// Validate file type
 	if !isValidImageType(file.Filename) {
@@ -125,23 +111,98 @@ func (h *Handler) HandleUpload(c *fiber.Ctx) error {
 	// Encode to base64
 	base64String := base64.StdEncoding.EncodeToString(fileBytes)
 
-	// Send to Hugging Face API
-	processedImage, err := sendToHuggingFace(base64String)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to process image: "+err.Error())
+	// Get the current user from the session
+	sess, ok := c.Locals("session").(*session.Session)
+	if !ok {
+		return fiber.NewError(fiber.StatusUnauthorized, "Not authenticated")
+	}
+	googleID := sess.Get("user_id")
+	if googleID == nil {
+		return fiber.NewError(fiber.StatusUnauthorized, "Not authenticated")
 	}
 
-	processedBase64 := base64.StdEncoding.EncodeToString(processedImage)
+	// Find the user in the database
+	var user database.User
+	if err := h.DB.Where("google_id = ?", googleID).First(&user).Error; err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to find user")
+	}
 
-	// Render the index page with success message
-	data := baseTemplateData("Home", "Welcome to our site", "/")
+	// Check if the image already exists for this user
+	var existingImage database.Image
+	err = h.DB.Where("user_google_id = ? AND base64_string = ?", googleID, base64String).First(&existingImage).Error
+	if err == nil {
+		// Image already exists
+		return fiber.NewError(fiber.StatusConflict, "This image has already been uploaded")
+	} else if err != gorm.ErrRecordNotFound {
+		// Some other error occurred
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to check for existing image")
+	}
+
+	// If we get here, the image doesn't exist, so we can create a new one
+	newImage := database.Image{
+		UserGoogleID: googleID.(string),
+		Base64String: base64String,
+	}
+
+	// Save the image to the database
+	if err := h.DB.Create(&newImage).Error; err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to save image to database")
+	}
+
+	data, err := h.prepareIndexData(c, googleID)
+	if err != nil {
+		return err
+	}
+
 	data["Success"] = "File uploaded and processed successfully"
-	data["UploadedName"] = name
-	data["FileName"] = base64String
-	data["ProcessedImage"] = processedBase64
+	data["UploadedName"] = file.Filename
 	data["ResetForm"] = true
 
+	// Ensure the session is saved
+	if err := sess.Save(); err != nil {
+		log.Printf("Failed to save session: %v", err)
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to save session")
+	}
+	log.Println("Session saved successfully")
+
+	log.Println("Rendering index page with updated image list")
 	return c.Render("index", data, "layouts/main")
+
+}
+
+func (h *Handler) HandleAbout(c *fiber.Ctx) error {
+	data := baseTemplateData("About Us", "Learn more about our company", "/about")
+	return c.Render("about", data, "layouts/main")
+}
+
+func (h *Handler) prepareIndexData(c *fiber.Ctx, googleID interface{}) (fiber.Map, error) {
+	data := baseTemplateData("Home", "Welcome to our site", "/")
+	data["Greeting"] = "Welcome to the homepage"
+	data["ResetForm"] = false
+	data["Error"] = ""
+	data["IsLoggedIn"] = googleID != nil
+
+	if googleID != nil {
+		var user database.User
+		if err := h.DB.Where("google_id = ?", googleID).First(&user).Error; err == nil {
+			data["UserEmail"] = user.Email
+
+			// Fetch user images
+			images, err := getAllUserImages(googleID.(string), h.DB)
+			if err != nil {
+				log.Printf("Failed to fetch user images: %v", err)
+				data["Error"] = "An error occurred while fetching user images"
+			} else {
+				data["UserImages"] = images
+				log.Printf("Fetched %d images for user", len(images))
+			}
+		} else {
+			log.Printf("Failed to fetch user data: %v", err)
+			data["Error"] = "An error occurred while fetching user data"
+		}
+	}
+
+	return data, nil
 }
 
 // Validate image file type
@@ -212,4 +273,10 @@ func sendToHuggingFace(base64Image string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func getAllUserImages(googleID string, db *gorm.DB) ([]database.Image, error) {
+	var images []database.Image
+	err := db.Where("user_google_id = ?", googleID).Find(&images).Error
+	return images, err
 }

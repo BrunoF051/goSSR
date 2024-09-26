@@ -7,6 +7,7 @@ import (
 	"goSSR/routes"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -36,7 +37,8 @@ func main() {
 
 	// Set up session store
 	store := session.New(session.Config{
-		Storage: storage,
+		Expiration: 20 * time.Minute,
+		Storage:    storage,
 	})
 
 	// Initialize database
