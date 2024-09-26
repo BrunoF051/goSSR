@@ -26,7 +26,11 @@
             <ul>
                 {{range .NavItems}}
                 <li>
-                    <a href="{{.Link}}" {{if .IsCurrent}}class="current" {{end}}
+                    <a
+                        href="{{.Link}}"
+                        {{if
+                        .IsCurrent}}class="secondary"
+                        {{end}}
                         >{{.Text}}</a
                     >
                 </li>

@@ -4,10 +4,13 @@ import (
 	"goSSR/handlers"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
-func Setup(app *fiber.App) {
-	app.Get("/", handlers.HandleIndex)
-	app.Get("/about", handlers.HandleAbout)
-	app.Post("/upload", handlers.HandleUpload)
+func Setup(app *fiber.App, db *gorm.DB) {
+	h := handlers.NewHandler(db)
+
+	app.Get("/", h.HandleIndex)
+	app.Get("/about", h.HandleAbout)
+	app.Post("/upload", h.HandleUpload)
 }

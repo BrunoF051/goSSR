@@ -12,12 +12,17 @@ import (
 	"path/filepath"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type NavItem struct {
 	Link      string
 	Text      string
 	IsCurrent bool
+}
+
+type Handler struct {
+	DB *gorm.DB
 }
 
 // Variables
@@ -29,6 +34,12 @@ var navItems = []NavItem{
 }
 
 // Handlers
+
+// NewHandler creates a new Handler instance
+func NewHandler(db *gorm.DB) *Handler {
+	return &Handler{DB: db}
+}
+
 func baseTemplateData(title, description, currentPath string) fiber.Map {
 	currentNavItems := make([]NavItem, len(navItems))
 	for i, item := range navItems {
@@ -47,7 +58,8 @@ func baseTemplateData(title, description, currentPath string) fiber.Map {
 }
 
 // Handlers
-func HandleIndex(c *fiber.Ctx) error {
+func (h *Handler) HandleIndex(c *fiber.Ctx) error {
+	// You can use h.DB here if needed
 	data := baseTemplateData("Home", "Welcome to our site", "/")
 	data["Greeting"] = "Welcome to the homepage"
 	data["ResetForm"] = false
@@ -55,12 +67,12 @@ func HandleIndex(c *fiber.Ctx) error {
 	return c.Render("index", data, "layouts/main")
 }
 
-func HandleAbout(c *fiber.Ctx) error {
+func (h *Handler) HandleAbout(c *fiber.Ctx) error {
 	data := baseTemplateData("About Us", "Learn more about our company", "/about")
 	return c.Render("about", data, "layouts/main")
 }
 
-func HandleUpload(c *fiber.Ctx) error {
+func (h *Handler) HandleUpload(c *fiber.Ctx) error {
 	// Get the file from the form
 	file, err := c.FormFile("file")
 	if err != nil {
