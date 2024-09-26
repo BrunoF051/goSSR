@@ -34,6 +34,8 @@
                         >{{.Text}}</a
                     >
                 </li>
+                {{end}} {{if .IsLoggedIn}}
+                <a href="/logout" class="button">Logout</a>
                 {{end}}
             </ul>
         </nav>

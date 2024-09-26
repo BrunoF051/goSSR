@@ -65,18 +65,15 @@ func (h *Handler) HandleIndex(c *fiber.Ctx) error {
 	data["Greeting"] = "Welcome to the homepage"
 	data["ResetForm"] = false
 	data["Error"] = ""
-	data["IsLoggedIn"] = false // Default to not logged in
+	data["IsLoggedIn"] = false
 
-	// Get session and check login status
 	if sess, ok := c.Locals("session").(*session.Session); ok {
 		if userID := sess.Get("user_id"); userID != nil {
 			data["IsLoggedIn"] = true
-			// Fetch user email from database using userID
 			var user database.User
-			if err := h.DB.First(&user, userID).Error; err == nil {
+			if err := h.DB.Where("google_id = ?", userID).First(&user).Error; err == nil {
 				data["UserEmail"] = user.Email
 			} else {
-				// Log the error and set a generic message
 				log.Printf("Failed to fetch user data: %v", err)
 				data["Error"] = "An error occurred while fetching user data"
 			}

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"goSSR/database"
 	"io"
+	"log"
 	"os"
 
 	"github.com/gofiber/fiber/v2"
@@ -71,28 +73,27 @@ func (h *Handler) GoogleCallbackHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to get user info")
 	}
 
-	fmt.Printf("User: %+v\n", user)
-	fmt.Printf("Token: %+v\n", token)
+	dbUser := database.User{
+		GoogleID: user.ID,
+		Email:    user.Email,
+		Image:    user.Picture,
+	}
 
-	// Here you can use h.DB to interact with the database
-	// For example:
-	// dbUser, err := h.createOrUpdateUser(user)
-	// if err != nil {
-	//     return c.Status(fiber.StatusInternalServerError).SendString("Failed to process user")
-	// }
+	result := h.DB.Where(database.User{GoogleID: user.ID}).Assign(dbUser).FirstOrCreate(&dbUser)
+	if result.Error != nil {
+		log.Printf("Failed to create/update user: %v", result.Error)
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to process user")
+	}
 
-	// Set up user session, etc.
-
-	//
+	// Set session
 	sess, _ := c.Locals("session").(*session.Session)
-	sess.Set("user_id", user.ID)
-	sess.Set("user_email", user.Email)
+	sess.Set("user_id", user.ID) // Using Google ID
 	if err := sess.Save(); err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to save session")
 	}
 
-	// For now, just redirect to home page
 	return c.Redirect("/")
+
 }
 
 func getUserInfo(token *oauth2.Token) (*GoogleUser, error) {
@@ -129,4 +130,21 @@ func RequireAuth(c *fiber.Ctx) error {
 	}
 
 	return c.Next()
+}
+
+func (h *Handler) HandleLogout(c *fiber.Ctx) error {
+	sess, ok := c.Locals("session").(*session.Session)
+	if !ok {
+		return c.Redirect("/")
+	}
+
+	// Clear the session
+	sess.Delete("user_id")
+	if err := sess.Save(); err != nil {
+		log.Printf("Failed to save session during logout: %v", err)
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to logout")
+	}
+
+	// Redirect to home page
+	return c.Redirect("/")
 }

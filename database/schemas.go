@@ -4,8 +4,9 @@ import "gorm.io/gorm"
 
 type User struct {
 	gorm.Model
-	Email string `gorm:"uniqueIndex;not null"`
-	image string
+	GoogleID string `gorm:"uniqueIndex;not null"`
+	Email    string `gorm:"uniqueIndex;not null"`
+	Image    string
 }
 
 func GetModels() []interface{} {
