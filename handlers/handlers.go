@@ -1,15 +1,10 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"goSSR/database"
 	"io"
 	"log"
-	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/gofiber/fiber/v2"
@@ -112,13 +107,9 @@ func (h *Handler) HandleUpload(c *fiber.Ctx) error {
 	base64String := base64.StdEncoding.EncodeToString(fileBytes)
 
 	// Get the current user from the session
-	sess, ok := c.Locals("session").(*session.Session)
-	if !ok {
-		return fiber.NewError(fiber.StatusUnauthorized, "Not authenticated")
-	}
-	googleID := sess.Get("user_id")
-	if googleID == nil {
-		return fiber.NewError(fiber.StatusUnauthorized, "Not authenticated")
+	sess, googleID, err := GetSessionAndUserID(c)
+	if err != nil {
+		return err // This will automatically send a 401 Unauthorized response
 	}
 
 	// Find the user in the database
@@ -216,67 +207,75 @@ func isValidImageType(filename string) bool {
 	}
 }
 
-// Send image to Hugging Face API
-func sendToHuggingFace(base64Image string) ([]byte, error) {
-	url := "https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix"
-	key := os.Getenv("HUGGINGFACE_KEY")
-	if key == "" {
-		log.Fatal("HUGGINGFACE_KEY is not set in the environment")
-	}
-	// Prepare the request payload
-	payload := map[string]interface{}{
-		"inputs": map[string]interface{}{
-			"image":  base64Image,
-			"prompt": "Make this image look like a professional profile picture with soft lighting and neutral background.",
-			"parameters": map[string]interface{}{
-				"guidance_scale":      7.5,
-				"num_inference_steps": 10,
-				"width":               512,
-				"height":              512,
-			},
-		},
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the request
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return nil, err
-	}
-
-	// Set headers
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Use-Cache", "true")
-	req.Header.Set("X-Wait-For-Model", "true")
-
-	// Send the request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// Read the response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	return body, nil
-}
-
 func getAllUserImages(googleID string, db *gorm.DB) ([]database.Image, error) {
 	var images []database.Image
 	err := db.Where("user_google_id = ?", googleID).Find(&images).Error
 	return images, err
+}
+
+func (h *Handler) deleteSingleUserImage(googleID, base64String string) error {
+	var image database.Image
+	err := h.DB.Where("user_google_id = ? AND base64_string = ?", googleID, base64String).First(&image).Error
+	if err != nil {
+		return err
+	}
+
+	if err := h.DB.Delete(&image).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Handler) HandleDeleteImage(c *fiber.Ctx) error {
+	imageID, err := c.ParamsInt("id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid image ID"})
+	}
+
+	// Get the current user from the session
+	sess, userGoogleID, err := GetSessionAndUserID(c)
+	if err != nil {
+		return err // This will automatically send a 401 Unauthorized response
+	}
+
+	// Delete the image
+	result := h.DB.Where("id = ? AND user_google_id = ?", imageID, userGoogleID).Delete(&database.Image{})
+	if result.Error != nil {
+		sess.Set("flash", "Failed to delete image")
+		if err := sess.Save(); err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Failed to save session")
+		}
+		return c.Redirect("/")
+	}
+
+	if result.RowsAffected == 0 {
+		sess.Set("flash", "Image not found or not owned by user")
+		if err := sess.Save(); err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Failed to save session")
+		}
+		return c.Redirect("/")
+	}
+
+	// Set success flash message
+	sess.Set("flash", "Image deleted successfully")
+	if err := sess.Save(); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to save session")
+	}
+
+	return c.Redirect("/")
+}
+
+func GetSessionAndUserID(c *fiber.Ctx) (*session.Session, interface{}, error) {
+	sess, ok := c.Locals("session").(*session.Session)
+	if !ok || sess == nil {
+		return nil, nil, fiber.NewError(fiber.StatusUnauthorized, "Unauthorized: No valid session")
+	}
+
+	userGoogleID := sess.Get("user_id")
+	if userGoogleID == nil {
+		return nil, nil, fiber.NewError(fiber.StatusUnauthorized, "Unauthorized: User not authenticated")
+	}
+
+	return sess, userGoogleID, nil
 }
